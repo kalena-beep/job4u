@@ -1,0 +1,32 @@
+// use prisma-8
+
+model Job {
+  id             Int           @id @default(autoincrement())
+  slug           String        @unique
+  title          String
+  company        String
+  description    String
+  location       String
+  employmentType String
+  workMode       String        @default("On-site")
+  salary         String?
+  featured       Boolean       @default(false)
+  applications   Application[]
+  createdAt      DateTime      @default(now()) @onCreate(now())
+  updatedAt      temporal.UpdatedAt
+}
+
+model Application {
+  id          Int      @id @default(autoincrement())
+  job         Job      @relation(fields: [jobId], references: [id])
+  jobId       Int
+  fullName    String
+  email       String
+  phone       String
+  coverLetter String
+  cvFileName  String
+  cvFilePath  String
+  status      String   @default("NEW")
+  createdAt   DateTime @default(now()) @onCreate(now())
+  updatedAt   temporal.UpdatedAt
+}
