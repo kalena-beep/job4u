@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import {
   Search,
   Menu,
@@ -436,74 +436,187 @@ function HowItWorks() {
   );
 }
 
+interface JobCardItem {
+  id?: number | string;
+  slug: string;
+  title: string;
+  company: string;
+  location: string;
+  employmentType: string;
+  workMode: string;
+  postedLabel: string;
+  featured?: boolean;
+  tone: string;
+}
+
+const JOB_CARD_TONES = [
+  "from-primary to-primary/70 text-primary-foreground",
+  "from-accent to-accent/70 text-accent-foreground",
+  "from-success to-success/70 text-success-foreground",
+];
+
+function makeSlug(title: string, company: string) {
+  return `${title}-${company}`
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function formatPostedAgo(dateInput?: string | Date) {
+  if (!dateInput) return "Recently";
+  const date = dateInput instanceof Date ? dateInput : new Date(dateInput);
+  if (Number.isNaN(date.getTime())) return String(dateInput);
+  const diffDays = Math.floor((Date.now() - date.getTime()) / (1000 * 60 * 60 * 24));
+  if (diffDays <= 0) return "Today";
+  if (diffDays === 1) return "1 day ago";
+  return `${diffDays} days ago`;
+}
+
+const FALLBACK_JOBS: JobCardItem[] = [
+  {
+    slug: "marketing-executive-brightpath-media",
+    title: "Marketing Executive",
+    company: "BrightPath Media",
+    location: "Raffles Place",
+    employmentType: "Full-time",
+    workMode: "Hybrid",
+    postedLabel: "2 days ago",
+    featured: true,
+    tone: JOB_CARD_TONES[0],
+  },
+  {
+    slug: "content-creator-lumen-studios",
+    title: "Content Creator",
+    company: "Lumen Studios",
+    location: "Tanjong Pagar",
+    employmentType: "Contract",
+    workMode: "Remote",
+    postedLabel: "1 day ago",
+    tone: JOB_CARD_TONES[1],
+  },
+  {
+    slug: "hr-assistant-harbourline-group",
+    title: "HR Assistant",
+    company: "Harbourline Group",
+    location: "Jurong East",
+    employmentType: "Full-time",
+    workMode: "On-site",
+    postedLabel: "3 days ago",
+    tone: JOB_CARD_TONES[2],
+  },
+  {
+    slug: "sales-executive-vertex-solutions",
+    title: "Sales Executive",
+    company: "Vertex Solutions",
+    location: "Paya Lebar",
+    employmentType: "Full-time",
+    workMode: "On-site",
+    postedLabel: "Today",
+    featured: true,
+    tone: JOB_CARD_TONES[1],
+  },
+  {
+    slug: "graphic-designer-northstar-creative",
+    title: "Graphic Designer",
+    company: "Northstar Creative",
+    location: "Bugis",
+    employmentType: "Part-time",
+    workMode: "Hybrid",
+    postedLabel: "5 days ago",
+    tone: JOB_CARD_TONES[2],
+  },
+  {
+    slug: "customer-service-executive-merlion-retail",
+    title: "Customer Service Executive",
+    company: "Merlion Retail",
+    location: "Tampines",
+    employmentType: "Full-time",
+    workMode: "On-site",
+    postedLabel: "1 week ago",
+    tone: JOB_CARD_TONES[0],
+  },
+];
+
 function Jobs() {
-  const jobs: {
-    t: string;
-    c: string;
-    l: string;
-    e: string;
-    w: string;
-    d: string;
-    f?: boolean;
-    tone: string;
-  }[] = [
-    {
-      t: "Marketing Executive",
-      c: "BrightPath Media",
-      l: "Raffles Place",
-      e: "Full-time",
-      w: "Hybrid",
-      d: "2 days ago",
-      f: true,
-      tone: "from-primary to-primary/70 text-primary-foreground",
-    },
-    {
-      t: "Content Creator",
-      c: "Lumen Studios",
-      l: "Tanjong Pagar",
-      e: "Contract",
-      w: "Remote",
-      d: "1 day ago",
-      tone: "from-accent to-accent/70 text-accent-foreground",
-    },
-    {
-      t: "HR Assistant",
-      c: "Harbourline Group",
-      l: "Jurong East",
-      e: "Full-time",
-      w: "On-site",
-      d: "3 days ago",
-      tone: "from-success to-success/70 text-success-foreground",
-    },
-    {
-      t: "Sales Executive",
-      c: "Vertex Solutions",
-      l: "Paya Lebar",
-      e: "Full-time",
-      w: "On-site",
-      d: "Today",
-      f: true,
-      tone: "from-accent to-accent/70 text-accent-foreground",
-    },
-    {
-      t: "Graphic Designer",
-      c: "Northstar Creative",
-      l: "Bugis",
-      e: "Part-time",
-      w: "Hybrid",
-      d: "5 days ago",
-      tone: "from-success to-success/70 text-success-foreground",
-    },
-    {
-      t: "Customer Service Executive",
-      c: "Merlion Retail",
-      l: "Tampines",
-      e: "Full-time",
-      w: "On-site",
-      d: "1 week ago",
-      tone: "from-primary to-primary/70 text-primary-foreground",
-    },
-  ];
+  const [jobs, setJobs] = useState<JobCardItem[]>([]);
+  const [loadingJobs, setLoadingJobs] = useState(true);
+  const [jobsError, setJobsError] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [locationFilter, setLocationFilter] = useState("");
+  const [typeFilter, setTypeFilter] = useState("");
+  const [saved, setSaved] = useState<string[]>([]);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadJobs() {
+      setLoadingJobs(true);
+      setJobsError(null);
+      try {
+        const res = await fetch("/api/jobs");
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          throw new Error(data?.message || "Gagal memuat lowongan dari database.");
+        }
+        const rows = Array.isArray(data?.jobs) ? data.jobs : Array.isArray(data) ? data : [];
+        if (!active) return;
+
+        const mapped: JobCardItem[] = rows.map((row: Record<string, unknown>, idx: number) => {
+          const title = String(row.title ?? "Untitled Role");
+          const company = String(row.company ?? "Company");
+          const slug = String(row.slug ?? makeSlug(title, company));
+          return {
+            id: (row.id as number | string) ?? slug,
+            slug,
+            title,
+            company,
+            location: String(row.location ?? "Singapore").replace(/,\s*Singapore$/i, ""),
+            employmentType: String(row.employmentType ?? "Full-time"),
+            workMode: String(row.workMode ?? "On-site"),
+            postedLabel: formatPostedAgo(row.createdAt as string | undefined),
+            featured: Boolean(row.featured),
+            tone: JOB_CARD_TONES[idx % JOB_CARD_TONES.length],
+          };
+        });
+
+        setJobs(mapped);
+      } catch (err) {
+        if (active) {
+          setJobs([]);
+          setJobsError(err instanceof Error ? err.message : "Gagal memuat lowongan dari database.");
+        }
+      } finally {
+        if (active) {
+          setLoadingJobs(false);
+        }
+      }
+    }
+
+    loadJobs();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const filteredJobs = jobs.filter((job) => {
+    const q = searchQuery.trim().toLowerCase();
+    const matchQuery =
+      !q ||
+      job.title.toLowerCase().includes(q) ||
+      job.company.toLowerCase().includes(q) ||
+      job.location.toLowerCase().includes(q);
+
+    const matchLocation =
+      !locationFilter ||
+      job.location.toLowerCase().includes(locationFilter.toLowerCase()) ||
+      job.workMode.toLowerCase().includes(locationFilter.toLowerCase());
+
+    const matchType =
+      !typeFilter || job.employmentType.toLowerCase() === typeFilter.toLowerCase();
+
+    return matchQuery && matchLocation && matchType;
+  });
+
   const typeBadge: Record<string, string> = {
     "Full-time": "bg-primary/10 text-primary",
     "Part-time": "bg-accent/15 text-accent",
@@ -514,9 +627,10 @@ function Jobs() {
     Hybrid: "bg-success/15 text-success",
     "On-site": "bg-muted text-foreground/70",
   };
-  const [saved, setSaved] = useState<string[]>([]);
+
   const field =
     "w-full min-w-0 bg-transparent py-3 text-sm outline-none placeholder:text-muted-foreground";
+
   return (
     <section id="jobs" className="relative scroll-mt-28 overflow-hidden py-24">
       <div className="pointer-events-none absolute left-1/2 top-1/2 h-[560px] w-[900px] max-w-full -translate-x-1/2 -translate-y-1/3 rounded-full bg-primary/5 blur-3xl" />
@@ -544,113 +658,167 @@ function Jobs() {
         >
           <label className="flex items-center gap-2 rounded-full px-4 md:border-r md:border-border md:rounded-none">
             <Search className="h-4 w-4 shrink-0 text-primary" />
-            <input placeholder="Search jobs" className={field} />
+            <input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search jobs"
+              className={field}
+            />
           </label>
           <label className="flex items-center gap-2 px-4 md:border-r md:border-border">
             <MapPin className="h-4 w-4 shrink-0 text-primary" />
-            <select className={field} defaultValue="">
+            <select
+              value={locationFilter}
+              onChange={(e) => setLocationFilter(e.target.value)}
+              className={field}
+            >
               <option value="">Location</option>
-              {["Central", "East", "West", "North", "Remote"].map((x) => (
-                <option key={x}>{x}</option>
-              ))}
+              {["Raffles Place", "Jurong East", "Tanjong Pagar", "Paya Lebar", "Bugis", "Tampines", "Remote"].map(
+                (x) => (
+                  <option key={x} value={x}>
+                    {x}
+                  </option>
+                )
+              )}
             </select>
           </label>
           <label className="flex items-center gap-2 px-4">
             <Briefcase className="h-4 w-4 shrink-0 text-primary" />
-            <select className={field} defaultValue="">
+            <select
+              value={typeFilter}
+              onChange={(e) => setTypeFilter(e.target.value)}
+              className={field}
+            >
               <option value="">Job Type</option>
               {["Full-time", "Part-time", "Contract"].map((x) => (
-                <option key={x}>{x}</option>
+                <option key={x} value={x}>
+                  {x}
+                </option>
               ))}
             </select>
           </label>
-          <button className="group inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-accent px-7 text-sm font-semibold text-accent-foreground shadow-soft transition-all hover:shadow-lift">
+          <button
+            type="submit"
+            className="group inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-accent px-7 text-sm font-semibold text-accent-foreground shadow-soft transition-all hover:shadow-lift"
+          >
             Search <Arrow />
           </button>
         </form>
 
-        <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {jobs.map(({ t, c, l, e, w, d, f, tone }) => {
-            const on = saved.includes(t);
-            return (
-              <article
-                key={t}
-                className="group relative flex flex-col rounded-[1.75rem] border border-border bg-card p-7 shadow-soft transition-all duration-300 hover:-translate-y-1.5 hover:border-primary/50 hover:shadow-lift"
-              >
-                {f && (
-                  <span className="absolute -top-3 left-7 inline-flex items-center gap-1 rounded-full bg-accent px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-accent-foreground shadow-soft">
-                    <Star className="h-3 w-3" fill="currentColor" /> Featured
-                  </span>
-                )}
-                <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-4">
-                  <div
-                    className={`grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br text-lg font-extrabold shadow-soft ${tone}`}
-                  >
-                    {c
-                      .split(" ")
-                      .map((x) => x[0])
-                      .join("")
-                      .slice(0, 2)}
-                  </div>
-                  <div className="min-w-0 pt-1">
-                    <p className="flex items-center gap-1.5 truncate text-sm font-medium text-muted-foreground">
-                      <Building2 className="h-3.5 w-3.5 shrink-0" />
-                      {c}
-                    </p>
-                    <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
-                      <Clock className="h-3.5 w-3.5 shrink-0" />
-                      {d}
-                    </p>
-                  </div>
-                  <button
-                    aria-label={on ? "Remove bookmark" : "Bookmark job"}
-                    onClick={() =>
-                      setSaved((s) =>
-                        on ? s.filter((x) => x !== t) : [...s, t],
-                      )
-                    }
-                    className={`grid h-10 w-10 place-items-center rounded-full border transition-colors ${on ? "border-accent bg-accent/10 text-accent" : "border-border text-muted-foreground hover:border-primary hover:text-primary"}`}
-                  >
-                    <Bookmark
-                      className="h-4 w-4"
-                      fill={on ? "currentColor" : "none"}
-                    />
-                  </button>
-                </div>
-                <h3 className="mt-6 text-xl font-extrabold leading-snug tracking-tight text-primary transition-colors group-hover:text-accent">
-                  {t}
-                </h3>
-                <p className="mt-2 flex items-center gap-1.5 text-sm text-foreground/70">
-                  <MapPin className="h-4 w-4 shrink-0 text-accent" />
-                  {l}, Singapore
-                </p>
-                <div className="mt-5 flex flex-wrap gap-2 text-xs font-semibold">
-                  <span className={`rounded-full px-3 py-1 ${typeBadge[e]}`}>
-                    {e}
-                  </span>
-                  <span className={`rounded-full px-3 py-1 ${workBadge[w]}`}>
-                    {w}
-                  </span>
-                </div>
-                <a
-                  href="#"
-                  className="mt-6 flex items-center justify-between border-t border-border pt-5 text-sm font-semibold text-primary"
+        {loadingJobs ? (
+          <div className="mt-12 rounded-3xl border border-border bg-card p-10 text-center shadow-soft">
+            <p className="text-sm font-medium text-muted-foreground">
+              Loading jobs from database...
+            </p>
+          </div>
+        ) : jobsError ? (
+          <div className="mt-12 rounded-3xl border border-border bg-card p-10 text-center shadow-soft">
+            <p className="font-bold text-primary">Unable to load jobs</p>
+            <p className="mt-1 text-sm text-muted-foreground">{jobsError}</p>
+          </div>
+        ) : filteredJobs.length === 0 ? (
+          <div className="mt-12 rounded-3xl border border-border bg-card p-10 text-center shadow-soft">
+            <p className="text-lg font-bold text-primary">
+              {jobs.length === 0
+                ? "Belum ada lowongan kerja di database."
+                : "Tidak ada lowongan yang cocok dengan filter pencarian."}
+            </p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {jobs.length === 0
+                ? "Tambahkan data ke tabel Job di database PostgreSQL job4u untuk menampilkannya di sini."
+                : "Coba reset kata kunci pencarian atau filter lokasi/tipe kerja."}
+            </p>
+          </div>
+        ) : (
+          <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {filteredJobs.map((job) => {
+              const { slug, title, company, location, employmentType, workMode, postedLabel, featured, tone } = job;
+              const on = saved.includes(slug);
+              return (
+                <article
+                  key={slug}
+                  className="group relative flex flex-col rounded-[1.75rem] border border-border bg-card p-7 shadow-soft transition-all duration-300 hover:-translate-y-1.5 hover:border-primary/50 hover:shadow-lift"
                 >
-                  View Job
-                  <span className="grid h-9 w-9 place-items-center rounded-full bg-secondary text-primary transition-all duration-300 group-hover:bg-primary group-hover:text-primary-foreground">
-                    <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-                  </span>
-                </a>
-              </article>
-            );
-          })}
-        </div>
+                  {featured && (
+                    <span className="absolute -top-3 left-7 inline-flex items-center gap-1 rounded-full bg-accent px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-accent-foreground shadow-soft">
+                      <Star className="h-3 w-3" fill="currentColor" /> Featured
+                    </span>
+                  )}
+                  <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-4">
+                    <div
+                      className={`grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br text-lg font-extrabold shadow-soft ${tone}`}
+                    >
+                      {company
+                        .split(" ")
+                        .map((x) => x[0])
+                        .join("")
+                        .slice(0, 2)}
+                    </div>
+                    <div className="min-w-0 pt-1">
+                      <p className="flex items-center gap-1.5 truncate text-sm font-medium text-muted-foreground">
+                        <Building2 className="h-3.5 w-3.5 shrink-0" />
+                        {company}
+                      </p>
+                      <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <Clock className="h-3.5 w-3.5 shrink-0" />
+                        {postedLabel}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      aria-label={on ? "Remove bookmark" : "Bookmark job"}
+                      onClick={() =>
+                        setSaved((s) =>
+                          on ? s.filter((x) => x !== slug) : [...s, slug],
+                        )
+                      }
+                      className={`grid h-10 w-10 place-items-center rounded-full border transition-colors ${
+                        on
+                          ? "border-accent bg-accent/10 text-accent"
+                          : "border-border text-muted-foreground hover:border-primary hover:text-primary"
+                      }`}
+                    >
+                      <Bookmark
+                        className="h-4 w-4"
+                        fill={on ? "currentColor" : "none"}
+                      />
+                    </button>
+                  </div>
+                  <h3 className="mt-6 text-xl font-extrabold leading-snug tracking-tight text-primary transition-colors group-hover:text-accent">
+                    {title}
+                  </h3>
+                  <p className="mt-2 flex items-center gap-1.5 text-sm text-foreground/70">
+                    <MapPin className="h-4 w-4 shrink-0 text-accent" />
+                    {location}, Singapore
+                  </p>
+                  <div className="mt-5 flex flex-wrap gap-2 text-xs font-semibold">
+                    <span
+                      className={`rounded-full px-3 py-1 ${
+                        typeBadge[employmentType] ?? "bg-primary/10 text-primary"
+                      }`}
+                    >
+                      {employmentType}
+                    </span>
+                    <span
+                      className={`rounded-full px-3 py-1 ${ workBadge[workMode] ?? "bg-muted text-foreground/70" }`} > {workMode} </span> </div> <a href={`/${slug}`}
+                    className="mt-6 flex items-center justify-between border-t border-border pt-5 text-sm font-semibold text-primary"
+                  >
+                    View Job
+                    <span className="grid h-9 w-9 place-items-center rounded-full bg-secondary text-primary transition-all duration-300 group-hover:bg-primary group-hover:text-primary-foreground">
+                      <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+                    </span>
+                  </a>
+                </article>
+              );
+            })}
+          </div>
+        )}
 
         <div className="mt-14 text-center">
           <p className="text-sm text-muted-foreground">
             More opportunities are waiting for you.
           </p>
-          <Btn variant="solid" className="mt-4 px-10 py-3.5 text-base">
+          <Btn variant="solid" href="#jobs" className="mt-4 px-10 py-3.5 text-base">
             View All Jobs <Arrow />
           </Btn>
         </div>
