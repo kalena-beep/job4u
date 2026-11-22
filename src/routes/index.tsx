@@ -556,7 +556,7 @@ function Jobs() {
         const res = await fetch("/api/jobs");
         const data = await res.json().catch(() => ({}));
         if (!res.ok) {
-          throw new Error(data?.message || "Gagal memuat lowongan dari database.");
+          throw new Error(data?.message || "Failed to load jobs from database.");
         }
         const rows = Array.isArray(data?.jobs) ? data.jobs : Array.isArray(data) ? data : [];
         if (!active) return;
@@ -583,7 +583,7 @@ function Jobs() {
       } catch (err) {
         if (active) {
           setJobs([]);
-          setJobsError(err instanceof Error ? err.message : "Gagal memuat lowongan dari database.");
+          setJobsError(err instanceof Error ? err.message : "Failed to load jobs from database.");
         }
       } finally {
         if (active) {
@@ -720,13 +720,13 @@ function Jobs() {
           <div className="mt-12 rounded-3xl border border-border bg-card p-10 text-center shadow-soft">
             <p className="text-lg font-bold text-primary">
               {jobs.length === 0
-                ? "Belum ada lowongan kerja di database."
-                : "Tidak ada lowongan yang cocok dengan filter pencarian."}
+                ? "No job listings available in the database yet."
+                : "No jobs match your search filters."}
             </p>
             <p className="mt-1 text-sm text-muted-foreground">
               {jobs.length === 0
-                ? "Tambahkan data ke tabel Job di database PostgreSQL job4u untuk menampilkannya di sini."
-                : "Coba reset kata kunci pencarian atau filter lokasi/tipe kerja."}
+                ? "Add records to the Job table in the job4u PostgreSQL database to display them here."
+                : "Try resetting your search keyword or location/job type filters."}
             </p>
           </div>
         ) : (
