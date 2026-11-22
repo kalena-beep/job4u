@@ -5,7 +5,7 @@ import path from "node:path";
 import { Pool } from "pg";
 import "dotenv/config";
 
-import { validateCvUpload, persistCvFile } from "./src/server/cv-storage.js";
+import { validateCvUpload, persistCvFile } from "./src/server/cv-storage.mjs";
 
 const __dirname = path.resolve();
 const PORT = Number(process.env.PORT || 8080);
