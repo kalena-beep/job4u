@@ -33,11 +33,25 @@ const MIME_TYPES = {
 };
 
 function sendJson(res, status, payload) {
-  if (!res || typeof res.writeHead !== "function") {
-    throw new TypeError("Invalid HTTP ServerResponse object passed to sendJson");
+  const body = JSON.stringify(payload);
+  if (res && typeof res.writeHead === "function") {
+    res.writeHead(status, { "Content-Type": "application/json; charset=utf-8" });
+    return res.end(body);
   }
-  res.writeHead(status, { "Content-Type": "application/json; charset=utf-8" });
-  res.end(JSON.stringify(payload));
+  if (res && typeof res.status === "function" && typeof res.json === "function") {
+    return res.status(status).json(payload);
+  }
+  if (res && typeof res.end === "function") {
+    res.statusCode = status;
+    if (typeof res.setHeader === "function") {
+      res.setHeader("Content-Type", "application/json; charset=utf-8");
+    }
+    return res.end(body);
+  }
+  return new Response(body, {
+    status,
+    headers: { "Content-Type": "application/json; charset=utf-8" },
+  });
 }
 
 async function serveStatic(res, pathname) {
@@ -97,7 +111,7 @@ const server = http.createServer(async (req, res) => {
         [slug]
       );
       if (!rows[0]) {
-        return sendJson(404, { message: "Job not found." });
+        return sendJson(res, 404, { message: "Job not found." });
       }
       return sendJson(res, 200, { job: rows[0] });
     }
@@ -138,7 +152,7 @@ const server = http.createServer(async (req, res) => {
 
       const parsedJobId = Number(jobIdRaw);
         if (!Number.isInteger(parsedJobId) || parsedJobId <= 0) {
-        return sendJson(400, { message: "Invalid jobId." });
+        return sendJson(res, 400, { message: "Invalid jobId." });
         }
 
         const { rows } = await pool.query(
@@ -163,7 +177,7 @@ const server = http.createServer(async (req, res) => {
 
     return sendJson(res, 404, { message: "API endpoint not found." });
   } catch (err) {
-    return sendJson(500, {
+    return sendJson(res, 500, {
       message: err instanceof Error ? err.message : "Internal server error",
     });
   }
