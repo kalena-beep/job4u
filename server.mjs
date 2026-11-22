@@ -33,6 +33,9 @@ const MIME_TYPES = {
 };
 
 function sendJson(res, status, payload) {
+  if (!res || typeof res.writeHead !== "function") {
+    throw new TypeError("Invalid HTTP ServerResponse object passed to sendJson");
+  }
   res.writeHead(status, { "Content-Type": "application/json; charset=utf-8" });
   res.end(JSON.stringify(payload));
 }
