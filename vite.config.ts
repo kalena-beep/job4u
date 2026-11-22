@@ -37,7 +37,7 @@ function job4uDevApiPlugin() {
         try {
           if (cleanUrl === "/api/jobs" && method === "GET") {
             const { rows } = await pool.query(
-              `SELECT * FROM "Job" ORDER BY "createdAt" DESC, "id" DESC`
+              `SELECT * FROM "Job" WHERE COALESCE("published", true) = true ORDER BY "createdAt" DESC, "id" DESC`
             );
             return sendJson(200, { jobs: rows });
           }
@@ -45,7 +45,7 @@ function job4uDevApiPlugin() {
           if (cleanUrl.startsWith("/api/jobs/") && method === "GET") {
             const slug = decodeURIComponent(cleanUrl.replace("/api/jobs/", ""));
             const { rows } = await pool.query(
-              `SELECT * FROM "Job" WHERE "slug" = $1 LIMIT 1`,
+              `SELECT * FROM "Job" WHERE "slug" = $1 AND COALESCE("published", true) = true LIMIT 1`,
               [slug]
             );
             if (!rows[0]) {
